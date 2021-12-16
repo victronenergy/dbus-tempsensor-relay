@@ -9,7 +9,6 @@ import dbus.service
 import os
 import argparse
 import sys
-import json
 import os
 import re
 
