@@ -18,6 +18,7 @@ help:
 	@echo " help - print this message"
 	@echo " install - install everything"
 	@echo " clean - remove temporary files"
+	@echo " distclean - remove all created files"
 
 install_app : $(FILES)
 	@if [ "$^" != "" ]; then \
@@ -34,6 +35,10 @@ install_velib_python: $(VEDLIB_FILES)
 	fi
 
 clean: ;
+	@rm -rf __pycache__
+	@rm -rf test/__pycache__
+
+distclean: clean
 
 install: install_velib_python install_app
 
@@ -46,4 +51,4 @@ testinstall:
 	(cd $(TMP) && ./dbus_tempsensor_relay.py --help > /dev/null)
 	-rm -rf $(TMP)
 
-.PHONY: help install_app install_velib_python install test
+.PHONY: help install_app install_velib_python install test clean distclean
