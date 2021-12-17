@@ -33,7 +33,7 @@ class DBusTempSensorRelay:
 		self.evaluationpending = True
 
 		dummy = {'code': None, 'whenToLog': 'configChange', 'accessLevel': None}
-		dbus_tree = {		
+		dbus_tree = {
 				'com.victronenergy.settings': { # Not our settings
 					'/Settings/Relay/Function': dummy,
 					'/Settings/Relay/1/Function': dummy
@@ -52,7 +52,7 @@ class DBusTempSensorRelay:
 
 		self._dbusmonitor = self._create_dbus_monitor(dbus_tree, valueChangedCallback=self._dbus_value_changed,
 				deviceAddedCallback=self._device_added, deviceRemovedCallback=self._device_removed)
-		
+
 		self._statusList = {}
 		self._relaysList = {
 			'com.victronenergy.settings/Settings/Relay/Function': {
@@ -71,18 +71,18 @@ class DBusTempSensorRelay:
 			}
 		self.settings = self._create_settings(supportedSettings, self._handle_changed_setting)
 		GLib.timeout_add(1000, exit_on_error, self._handletimertick)
-		
+
 	def _update_relays_config(self):
 		for i in self._relaysList:
 			self._relay_configuration_changed(i, self._check_relay_function(i))
-	
+
 	def _release_relays(self):
 		for i in self._relaysList:
 			self._switchRelay(self._relaysList[i]['state'], 0)
 
 	def _create_settings(self, *args, **kwargs):
 		return SettingsDevice(self.bus, *args, timeout=10, **kwargs)
-	
+
 	def _create_dbus_monitor(self, *args, **kwargs):
 		return DbusMonitor(*args, **kwargs)
 
@@ -99,7 +99,7 @@ class DBusTempSensorRelay:
 			hardwareversion=None,
 			connected=1)
 		return dbusservice
-		
+
 	def _evaluate_if_we_are_needed(self):
 		if self._relays_configured():
 			if self.dbusservice is None:
@@ -123,11 +123,11 @@ class DBusTempSensorRelay:
 	def _handletimertick(self):
 		if self.evaluationpending:
 			self._evaluate_if_we_are_needed()
-			return True	
+			return True
 
 		if self.dbusservice == None:
 			return True
-			
+
 		try:
 			for sensorId in self._statusList:
 				# Update temperatures
@@ -135,7 +135,7 @@ class DBusTempSensorRelay:
 				# Update conditions
 				self._checkValues(self._getService(sensorId))
 			self._checkRelay()
-			
+
 		except:
 			import traceback
 			traceback.print_exc()
@@ -159,12 +159,12 @@ class DBusTempSensorRelay:
 
 		if re.match(r'^c[0-9]+', setting):
 			self.dbusservice['/Sensor/' + self._setting_to_path(setting)] = newvalue
-		
+
 		if 'c0Relay' in setting or 'c1Relay' in setting:
 			sensor = setting.split("_", 1)[1]
 			condition = setting[1]
 			logger.info('Sensor %s condition %s is now driving relay %s', sensor, condition, newvalue )
-			
+
 		if 'enable_' in setting:
 			service = setting.split("_", 1)[1]
 			logger.info('Temperature relay function for service %s: %s.', service, ('Enabled' if newvalue == 1 else 'Disabled'))
@@ -173,7 +173,7 @@ class DBusTempSensorRelay:
 
 	def _check_relay_function(self, relay):
 		return self._dbusmonitor.get_value(relay.split('/')[0], '/' + relay.split('/', 1)[1]) == 4
-	
+
 	def _relay_configuration_changed(self, relay, enabled):
 		if not enabled:
 			if (self._relaysList[relay]['configured']):
@@ -187,7 +187,7 @@ class DBusTempSensorRelay:
 		for i in self._relaysList:
 			if self._check_relay_function(i):
 				return True
-	
+
 	def _get_relay_config_path(self, instance):
 		# "Instaces" elay 0 and 1 refer to the built-in relays
 		service = ""
@@ -202,7 +202,7 @@ class DBusTempSensorRelay:
 		for service in self._dbusmonitor.get_service_list(classfilter='com.victronenergy.temperature'):
 			if 'com.victronenergy.temperature' in service:
 				self._addTempService(self._getSensorId(service))
-		
+
 	def _addTempService(self, serviceName):
 		settings = {}
 		deviceSettingsBase = {
@@ -239,13 +239,13 @@ class DBusTempSensorRelay:
 			enabledval = self.settings[self._path_to_setting(sensorprefix + '/Enabled')]
 			self.dbusservice.add_path(sensorprefix + '/Enabled', enabledval, writeable=True, onchangecallback=self._handleServiceValueChange)
 			self.dbusservice.add_path(sensorprefix + '/ServiceName', self._getService(sensor))
-			for i in range(0, 2): 
+			for i in range(0, 2):
 				p = sensorprefix + '/'  + str(i) + '/'
 				self.dbusservice.add_path(p + 'State', 0)
 				for k in settings:
 					val = self.settings[self._path_to_setting(p + k)]
 					self.dbusservice.add_path(p + k, val, writeable=True, onchangecallback=self._handleServiceValueChange)
-			
+
 
 	def _handleServiceValueChange(self, path, newvalue):
 		if '/Sensor/' not in path:
@@ -254,14 +254,14 @@ class DBusTempSensorRelay:
 		return True
 
 	def _dbus_value_changed(self, dbusServiceName, dbusPath, options, changes, deviceInstance):
-		if dbusServiceName == 'com.victronenergy.settings':	
+		if dbusServiceName == 'com.victronenergy.settings':
 			if dbusServiceName + dbusPath in self._relaysList and changes != None:
 				value =  int(changes['Value']) if not isinstance(changes, int) else changes
 				logger.info('Function changed for relay %s: %s', dbusServiceName + dbusPath, value)
 				self._relay_configuration_changed(dbusServiceName + dbusPath, value == 4) # Function 4 -> Temp sensor
 				self.evaluationpending = True
 		return
-    
+
 	def _device_removed(self, dbusservicename, instance):
 		if 'com.victronenergy.temperature' in dbusservicename:
 			sId = self._getSensorId(dbusservicename)
@@ -269,7 +269,7 @@ class DBusTempSensorRelay:
 				logger.info('Service %s is no longer available, removing it...', dbusservicename)
 				del self._statusList[sId]
 				self._remove_sensor_form_dbus_service(sId)
-	
+
 	def _device_added(self, dbusservicename, instance):
 		logger.info('Device added: %s', dbusservicename)
 		if self.dbusservice == None:
@@ -277,10 +277,10 @@ class DBusTempSensorRelay:
 		if 'com.victronenergy.temperature' in dbusservicename:
 			self._evaluate_if_we_are_needed()
 			self._addTempService(self._getSensorId(dbusservicename))
-	
+
 	def _remove_sensor_form_dbus_service(self, sensor):
 		settings = ['SetValue', 'ClearValue', 'Relay']
-		for i in range(0, 2): 
+		for i in range(0, 2):
 			p = '/Sensor/' + sensor + '/'  + str(i) + '/'
 			self._dbusservice.__delitem__(p + 'State', 0)
 			for k in settings:
@@ -328,7 +328,7 @@ class DBusTempSensorRelay:
 				serviceStatus['attempts'] = 0
 				logger.info('Value of %s temperature is valid again, resuming evaluation', service)
 			if attempts > 0 and attempts < READ_RETRIES and attempts % 10 == 0:
-				logger.info('Error reading %s temperature, retriying... [%s / %s]', 
+				logger.info('Error reading %s temperature, retriying... [%s / %s]',
 				service, attempts, READ_RETRIES)
 			# Nothing to do, return and wait till the next read
 			return
@@ -337,23 +337,23 @@ class DBusTempSensorRelay:
 				serviceStatus['attempts'] = 0
 				logger.info('Value of %s temperature is valid again, resuming evaluation', service)
 			else:
-				logger.info('Error reading %s temperature after %s attepmts. Disabling relay driving for this condition.', 
+				logger.info('Error reading %s temperature after %s attepmts. Disabling relay driving for this condition.',
 				service, attempts)
 				serviceStatus['c0Active'] = 0
 				serviceStatus['c1Active'] = 0
 				return
-		
+
 		if c0Relay and c0Relay != "-1" and evaluate:
 			c0Set = self._getSetting('c0SetValue', service)
 			c0Clear = self._getSetting('c0ClearValue', service)
-			inRange = self._inRange(c0Set, c0Clear, temperature, serviceStatus['c0Active']) 
-			serviceStatus['c0Active'] =  inRange and self._relaysList[c0Relay]['configured'] 
+			inRange = self._inRange(c0Set, c0Clear, temperature, serviceStatus['c0Active'])
+			serviceStatus['c0Active'] =  inRange and self._relaysList[c0Relay]['configured']
 
 		if c1Relay and c1Relay != "-1" and evaluate:
 			c1Set = self._getSetting('c1SetValue', service)
-			c1Clear = self._getSetting('c1ClearValue', service) 
+			c1Clear = self._getSetting('c1ClearValue', service)
 			inRange = self._inRange(c1Set, c1Clear, temperature, serviceStatus['c1Active'])
-			serviceStatus['c1Active'] =  inRange and self._relaysList[c1Relay]['configured'] 
+			serviceStatus['c1Active'] =  inRange and self._relaysList[c1Relay]['configured']
 
 	def _inRange(self, setVal, clearVal, val, active):
 		if setVal > clearVal:
@@ -395,7 +395,7 @@ class DBusTempSensorRelay:
 			if self.dbusservice and sensorspath:
 				self.dbusservice[sensorspath + "/0/State"] = c0Active
 				self.dbusservice[sensorspath + "/1/State"] = c1Active
-		
+
 		# Activate or deactivate relays
 		for confservice, state in relays.items():
 			if (self._relaysList[confservice]['configured']):
