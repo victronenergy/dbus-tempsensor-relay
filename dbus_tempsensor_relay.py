@@ -362,6 +362,9 @@ class DBusTempSensorRelay:
 			serviceStatus['c1Active'] =  inRange and self._relaysList[c1Relay]['configured']
 
 	def _inRange(self, setVal, clearVal, val, active):
+		if val == None:
+			return False
+
 		if setVal > clearVal:
 			return val >= setVal or (active and val > clearVal)
 		else:
