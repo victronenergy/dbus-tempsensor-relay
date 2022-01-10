@@ -237,14 +237,18 @@ class DBusTempSensorRelay:
 		sensorprefix = '/Sensor/' + sensor
 		if self.dbusservice != None and (sensorprefix + "/Enabled") not in self.dbusservice:
 			enabledval = self.settings[self._path_to_setting(sensorprefix + '/Enabled')]
-			self.dbusservice.add_path(sensorprefix + '/Enabled', enabledval, writeable=True, onchangecallback=self._handleServiceValueChange)
-			self.dbusservice.add_path(sensorprefix + '/ServiceName', self._getService(sensor))
+			self.dbusservice.add_path(sensorprefix + '/Enabled', None, writeable=True, onchangecallback=self._handleServiceValueChange)
+			self.dbusservice[sensorprefix + '/Enabled'] = enabledval
+			self.dbusservice.add_path(sensorprefix + '/ServiceName', None)
+			self.dbusservice[sensorprefix + '/ServiceName'] = self._getService(sensor)
+
 			for i in range(0, 2):
 				p = sensorprefix + '/'  + str(i) + '/'
 				self.dbusservice.add_path(p + 'State', 0)
 				for k in settings:
 					val = self.settings[self._path_to_setting(p + k)]
-					self.dbusservice.add_path(p + k, val, writeable=True, onchangecallback=self._handleServiceValueChange)
+					self.dbusservice.add_path(p + k, None, writeable=True, onchangecallback=self._handleServiceValueChange)
+					self.dbusservice[p + k] = val
 
 
 	def _handleServiceValueChange(self, path, newvalue):
@@ -279,11 +283,13 @@ class DBusTempSensorRelay:
 			self._addTempService(self._getSensorId(dbusservicename))
 
 	def _remove_sensor_form_dbus_service(self, sensor):
-		settings = ['SetValue', 'ClearValue', 'Relay']
+		items = ['SetValue', 'ClearValue', 'Relay', 'State']
+		sp = '/Sensor/' + sensor
+		self.dbusservice.__delitem__(sp + '/ServiceName')
+		self.dbusservice.__delitem__(sp + '/Enabled')
 		for i in range(0, 2):
-			p = '/Sensor/' + sensor + '/'  + str(i) + '/'
-			self._dbusservice.__delitem__(p + 'State', 0)
-			for k in settings:
+			p = sp + '/'  + str(i) + '/'
+			for k in items:
 				self.dbusservice.__delitem__(p + k)
 
 	def _checkTemp(self, service):
