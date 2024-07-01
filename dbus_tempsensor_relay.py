@@ -44,6 +44,7 @@ class DBusTempSensorRelay:
 				},
 				'com.victronenergy.temperature': {
 					'/Connected': dummy,
+					'/DeviceInstance': dummy,
 					'/ProductName': dummy,
 					'/Temperature': dummy,
 					'/Mgmt/Connection': dummy
@@ -241,6 +242,8 @@ class DBusTempSensorRelay:
 			self.dbusservice[sensorprefix + '/Enabled'] = enabledval
 			self.dbusservice.add_path(sensorprefix + '/ServiceName', None)
 			self.dbusservice[sensorprefix + '/ServiceName'] = self._getService(sensor)
+			self.dbusservice.add_path(sensorprefix + '/ServiceInstance', None)
+			self.dbusservice[sensorprefix + '/ServiceInstance'] = self._getServiceInstance(sensor)
 
 			for i in range(0, 2):
 				p = sensorprefix + '/'  + str(i) + '/'
@@ -286,6 +289,7 @@ class DBusTempSensorRelay:
 		items = ['SetValue', 'ClearValue', 'Relay', 'State']
 		sp = '/Sensor/' + sensor
 		self.dbusservice.__delitem__(sp + '/ServiceName')
+		self.dbusservice.__delitem__(sp + '/ServiceInstance')
 		self.dbusservice.__delitem__(sp + '/Enabled')
 		for i in range(0, 2):
 			p = sp + '/'  + str(i) + '/'
@@ -379,6 +383,10 @@ class DBusTempSensorRelay:
 		if 'com.victronenergy.temperature.' not in sensorId:
 			return 'com.victronenergy.temperature.' + sensorId
 		return sensorId
+
+	def _getServiceInstance(self, sensorId):
+		service = self._getService(sensorId)
+		return self._dbusmonitor.get_value(service, "/DeviceInstance")
 
 	def _checkRelay(self):
 		relays = {}
