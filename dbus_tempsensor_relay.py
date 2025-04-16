@@ -88,7 +88,7 @@ class DBusTempSensorRelay:
 		return DbusMonitor(*args, **kwargs)
 
 	def _create_dbus_service(self):
-		dbusservice = VeDbusService("com.victronenergy.temprelay")
+		dbusservice = VeDbusService("com.victronenergy.temprelay", register=False)
 		dbusservice.add_mandatory_paths(
 			processname=__file__,
 			processversion=softwareVersion,
@@ -109,6 +109,7 @@ class DBusTempSensorRelay:
 				self.dbusservice.add_path('/State', value=0)
 				self.dbusservice.add_path('/AvailableTemperatureServices', value=None)
 				self.dbusservice.add_path('/Sensor', value=None)
+				self.dbusservice.register()
 				self._update_relays_config()
 				self._get_sensors()
 		else:
