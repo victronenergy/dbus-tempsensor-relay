@@ -48,6 +48,14 @@ class DBusTempSensorRelay:
 					'/ProductName': dummy,
 					'/Temperature': dummy,
 					'/Mgmt/Connection': dummy
+				},
+				'com.victronenergy.battery': {
+					'/Connected': dummy,
+					'/DeviceInstance': dummy,
+					'/ProductName': dummy,
+					'/Dc/0/Temperature': dummy,
+					'/System/MinCellTemperature': dummy,
+					'/Mgmt/Connection': dummy
 				}
 			}
 
@@ -133,9 +141,9 @@ class DBusTempSensorRelay:
 		try:
 			for sensorId in self._statusList:
 				# Update temperatures
-				self._checkTemp(self._getService(sensorId))
+				self._checkTemp(sensorId)
 				# Update conditions
-				self._checkValues(self._getService(sensorId))
+				self._checkValues(sensorId)
 			self._checkRelay()
 
 		except:
@@ -201,9 +209,9 @@ class DBusTempSensorRelay:
 
 	# Find temperature sensor services
 	def _get_sensors(self):
-		for service in self._dbusmonitor.get_service_list(classfilter='com.victronenergy.temperature'):
-			if 'com.victronenergy.temperature' in service:
-				self._addTempService(self._getSensorId(service))
+		for service in self._dbusmonitor.get_service_list():
+			if 'com.victronenergy.temperature' in service or self._isBatteryServiceWithTemp(service):
+				self._addTempService(service)
 
 	def _addTempService(self, serviceName):
 		settings = {}
@@ -216,10 +224,11 @@ class DBusTempSensorRelay:
 			'c1SetValue_{0}': ['/Settings/TempSensorRelay/{0}/1/SetValue', 0, -100, 100],  
 			'c1ClearValue_{0}': ['/Settings/TempSensorRelay/{0}/1/ClearValue', 0, -100, 100]
 		}
+		sensorId = self._getSensorId(serviceName)
 		for s in deviceSettingsBase:
 			v = deviceSettingsBase[s][:]  # Copy
-			v[0] = v[0].format(serviceName)
-			settings[s.format(serviceName)] = v
+			v[0] = v[0].format(sensorId)
+			settings[s.format(sensorId)] = v
 		self.settings.addSettings(settings)
 
 		if serviceName not in self._statusList:
@@ -236,13 +245,13 @@ class DBusTempSensorRelay:
 
 	def _add_sensor_to_service(self, sensor):
 		settings = ['SetValue', 'ClearValue', 'Relay']
-		sensorprefix = '/Sensor/' + sensor
+		sensorprefix = '/Sensor/' + self._getSensorId(sensor)
 		if self.dbusservice != None and (sensorprefix + "/Enabled") not in self.dbusservice:
 			enabledval = self.settings[self._path_to_setting(sensorprefix + '/Enabled')]
 			self.dbusservice.add_path(sensorprefix + '/Enabled', None, writeable=True, onchangecallback=self._handleServiceValueChange)
 			self.dbusservice[sensorprefix + '/Enabled'] = enabledval
 			self.dbusservice.add_path(sensorprefix + '/ServiceName', None)
-			self.dbusservice[sensorprefix + '/ServiceName'] = self._getService(sensor)
+			self.dbusservice[sensorprefix + '/ServiceName'] = sensor
 			self.dbusservice.add_path(sensorprefix + '/ServiceInstance', None)
 			self.dbusservice[sensorprefix + '/ServiceInstance'] = self._getServiceInstance(sensor)
 
@@ -272,23 +281,22 @@ class DBusTempSensorRelay:
 
 	def _device_removed(self, dbusservicename, instance):
 		if 'com.victronenergy.temperature' in dbusservicename:
-			sId = self._getSensorId(dbusservicename)
-			if sId in self._statusList:
+			if dbusservicename in self._statusList:
 				logger.info('Service %s is no longer available, removing it...', dbusservicename)
-				del self._statusList[sId]
-				self._remove_sensor_form_dbus_service(sId)
+				del self._statusList[dbusservicename]
+				self._remove_sensor_form_dbus_service(dbusservicename)
 
 	def _device_added(self, dbusservicename, instance):
 		logger.info('Device added: %s', dbusservicename)
 		if self.dbusservice == None:
 			return
-		if 'com.victronenergy.temperature' in dbusservicename:
+		if 'com.victronenergy.temperature' in dbusservicename or self._isBatteryServiceWithTemp(dbusservicename):
 			self._evaluate_if_we_are_needed()
-			self._addTempService(self._getSensorId(dbusservicename))
+			self._addTempService(dbusservicename)
 
 	def _remove_sensor_form_dbus_service(self, sensor):
 		items = ['SetValue', 'ClearValue', 'Relay', 'State']
-		sp = '/Sensor/' + sensor
+		sp = '/Sensor/' + self._getSensorId(sensor)
 		self.dbusservice.__delitem__(sp + '/ServiceName')
 		self.dbusservice.__delitem__(sp + '/ServiceInstance')
 		self.dbusservice.__delitem__(sp + '/Enabled')
@@ -297,13 +305,23 @@ class DBusTempSensorRelay:
 			for k in items:
 				self.dbusservice.__delitem__(p + k)
 
+	def _get_temperature(self, service):
+		if 'com.victronenergy.temperature' in service:
+			return self._dbusmonitor.get_value(service, "/Temperature")
+		elif 'com.victronenergy.battery' in service:
+			if self._dbusmonitor.get_value(service, "/System/MinCellTemperature") is not None:
+				return self._dbusmonitor.get_value(service, "/System/MinCellTemperature")
+			else:
+				return self._dbusmonitor.get_value(service, "/Dc/0/Temperature")
+		return None
+
 	def _checkTemp(self, service):
-		sensorId = self._getSensorId(service)
-		temperature = self._dbusmonitor.get_value(service, "/Temperature")
-		self._statusList[sensorId]['temperature'] = temperature
+		temperature = self._get_temperature(service)
+
+		self._statusList[service]['temperature'] = temperature
 		# In case of invalid temperature values keep track or retries
 		if temperature is None:
-			self._statusList[sensorId]['attempts'] += 1
+			self._statusList[service]['attempts'] += 1
 
 	def _getSetting(self, setting, service):
 		srvc = self._getSensorId(service)
@@ -315,8 +333,8 @@ class DBusTempSensorRelay:
 		c0Relay = self._get_relay_config_path(self._getSetting('c0Relay', service))
 		c1Relay = self._get_relay_config_path(self._getSetting('c1Relay', service))
 		mode = self._getSetting('Enabled', service)
-		temperature = self._statusList[sensorId]['temperature']
-		serviceStatus = self._statusList[sensorId]
+		temperature = self._statusList[service]['temperature']
+		serviceStatus = self._statusList[service]
 		evaluate = True
 		attempts = serviceStatus['attempts']
 
@@ -375,18 +393,17 @@ class DBusTempSensorRelay:
 		else:
 			return val <= setVal or (active and val < clearVal)
 
+	def _isBatteryServiceWithTemp(self, service):
+		return 'com.victronenergy.battery' in service and self._dbusmonitor.get_value(service, "/Dc/0/Temperature") is not None
+
 	def _getSensorId(self, service):
 		if 'com.victronenergy.temperature.' in service:
 			return service.split('com.victronenergy.temperature.')[1]
+		elif 'com.victronenergy.battery' in service:
+			return service.split('com.victronenergy.battery.')[1]
 		return service
 
-	def _getService(self, sensorId):
-		if 'com.victronenergy.temperature.' not in sensorId:
-			return 'com.victronenergy.temperature.' + sensorId
-		return sensorId
-
-	def _getServiceInstance(self, sensorId):
-		service = self._getService(sensorId)
+	def _getServiceInstance(self, service):
 		return self._dbusmonitor.get_value(service, "/DeviceInstance")
 
 	def _checkRelay(self):
@@ -396,11 +413,11 @@ class DBusTempSensorRelay:
 			relays[k] = False
 
 		# Determine the what the relays status should be based on active conditions
-		for sensor in self._statusList:
-			c0Relay = self._statusList[sensor]['c0Relay']
-			c0Active = self._statusList[sensor]['c0Active']
-			c1Relay = self._statusList[sensor]['c1Relay']
-			c1Active = self._statusList[sensor]['c1Active']
+		for service in self._statusList:
+			c0Relay = self._statusList[service]['c0Relay']
+			c0Active = self._statusList[service]['c0Active']
+			c1Relay = self._statusList[service]['c1Relay']
+			c1Active = self._statusList[service]['c1Active']
 
 			if (c0Relay):
 				relays[c0Relay] |= c0Active
@@ -408,7 +425,7 @@ class DBusTempSensorRelay:
 			if (c1Relay):
 				relays[c1Relay] |= c1Active
 
-			sensorspath = '/Sensor/' + sensor
+			sensorspath = '/Sensor/' + self._getSensorId(service)
 			# Set the condition status in the service
 			if self.dbusservice and sensorspath:
 				self.dbusservice[sensorspath + "/0/State"] = c0Active
