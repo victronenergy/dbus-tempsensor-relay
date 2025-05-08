@@ -113,6 +113,12 @@ class TestTempRelay(TestTempRelayBase):
 				'/Temperature': 15,
 			})
 
+		self._add_device('com.victronenergy.battery.socketcan_vecan0_1',
+			values={
+				'/Dc/0/Temperature': 15,
+				'/System/MinCellTemperature': 15,
+			})
+
 		# DBus service is not created till Settings/Relay/Function is 1
 		self._service = self._temprelay_.dbusservice
 
@@ -195,7 +201,68 @@ class TestTempRelay(TestTempRelayBase):
 			'/Sensor/ruuvi_c66a72222d16/0/State': 0,
 			'/Sensor/ruuvi_c66a72222d16/1/State': 1
 			})
-	
+
+	def test_battery_service_with_temp(self):
+		self._update_values()
+		self._monitor.set_value('com.victronenergy.settings', '/Settings/Relay/1/Function', 4)
+
+		self._update_values()
+		self._set_value('/Sensor/socketcan_vecan0_1/1/Relay', 1)
+		self._set_value('/Sensor/socketcan_vecan0_1/1/SetValue', 16)
+		self._set_value('/Sensor/socketcan_vecan0_1/1/ClearValue', 25)
+
+		self._set_setting('/Settings/TempSensorRelay/socketcan_vecan0_1/Enabled', 0)
+		self._check_values({
+			'/Sensor/socketcan_vecan0_1/0/State': 0,
+			'/Sensor/socketcan_vecan0_1/1/State': 0
+			})
+		self._set_setting('/Settings/TempSensorRelay/socketcan_vecan0_1/Enabled', 1)
+		self._update_values()
+		self._check_values({
+			'/Sensor/socketcan_vecan0_1/0/State': 0,
+			'/Sensor/socketcan_vecan0_1/1/State': 1
+			})
+
+		# /System/MinCellTemperature is present, so it should not act on /Dc/0/Temperature
+		self._monitor.set_value('com.victronenergy.battery.socketcan_vecan0_1', '/Dc/0/Temperature', 32)
+		self._update_values()
+		self._check_values({
+			'/Sensor/socketcan_vecan0_1/0/State': 0,
+			'/Sensor/socketcan_vecan0_1/1/State': 1
+			})
+
+		self._monitor.set_value('com.victronenergy.battery.socketcan_vecan0_1', '/System/MinCellTemperature', 32)
+		self._update_values()
+		self._check_values({
+			'/Sensor/socketcan_vecan0_1/0/State': 0,
+			'/Sensor/socketcan_vecan0_1/1/State': 0
+			})
+
+	def test_add_battery_service_with_temp(self):
+		self._update_values()
+		self._monitor.set_value('com.victronenergy.settings', '/Settings/Relay/1/Function', 4)
+
+		self._add_device('com.victronenergy.battery.socketcan_vecan0_2',
+			values={
+				'/Dc/0/Temperature': 15,
+			})
+		self._update_values()
+		self._set_value('/Sensor/socketcan_vecan0_2/1/Relay', 1)
+		self._set_value('/Sensor/socketcan_vecan0_2/1/SetValue', 16)
+		self._set_value('/Sensor/socketcan_vecan0_2/1/ClearValue', 25)
+
+		self._set_setting('/Settings/TempSensorRelay/socketcan_vecan0_2/Enabled', 0)
+		self._check_values({
+			'/Sensor/socketcan_vecan0_2/0/State': 0,
+			'/Sensor/socketcan_vecan0_2/1/State': 0
+			})
+		self._set_setting('/Settings/TempSensorRelay/socketcan_vecan0_2/Enabled', 1)
+		self._update_values()
+		self._check_values({
+			'/Sensor/socketcan_vecan0_2/0/State': 0,
+			'/Sensor/socketcan_vecan0_2/1/State': 1
+			})
+
 	def test_swap_relays(self):
 		self._monitor.set_value('com.victronenergy.settings', '/Settings/Relay/Function', 4)
 		self._monitor.set_value('com.victronenergy.settings', '/Settings/Relay/1/Function', 4)
