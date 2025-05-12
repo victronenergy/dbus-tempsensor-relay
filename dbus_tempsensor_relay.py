@@ -21,7 +21,7 @@ from dbusmonitor import DbusMonitor
 from settingsdevice import SettingsDevice
 from logger import setup_logging
 
-softwareVersion = '1.5'
+softwareVersion = '1.6'
 
 READ_RETRIES = 300
 
